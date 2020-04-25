@@ -9,11 +9,20 @@ from rlpyt.utils.logging.context import logger_context
 from dreamer.agents.dmc_dreamer_agent import DMCDreamerAgent
 from dreamer.algos.dreamer_algo import Dreamer
 from dreamer.envs.dmc import DeepMindControl
+from dreamer.envs.time_limit import TimeLimit
+from dreamer.envs.action_repeat import ActionRepeat
+from dreamer.envs.normalize_actions import NormalizeActions
+from dreamer.envs.wrapper import make_wapper
 
 
-def build_and_train(log_dir, game="cartpole_balance", run_ID=0, cuda_idx=None, eval=False):  # TO!DO
+def build_and_train(log_dir, game="cartpole_balance", run_ID=0, cuda_idx=None, eval=False):
+    action_repeat = 2
+    factory_method = make_wapper(
+        DeepMindControl,
+        [ActionRepeat, NormalizeActions, TimeLimit],
+        [dict(amount=action_repeat), dict(), dict(duration=1000 / action_repeat)])
     sampler = SerialSampler(
-        EnvCls=DeepMindControl,
+        EnvCls=factory_method,
         TrajInfoCls=TrajInfo,
         env_kwargs=dict(name=game),
         eval_env_kwargs=dict(name=game),
@@ -25,7 +34,8 @@ def build_and_train(log_dir, game="cartpole_balance", run_ID=0, cuda_idx=None, e
         eval_max_trajectories=5,
     )
     algo = Dreamer()  # Run with defaults.
-    agent = DMCDreamerAgent()
+    agent = DMCDreamerAgent(train_noise=0.3, eval_noise=0, expl_type="additive_gaussian",
+                              expl_min=None, expl_decay=None)
     runner_cls = MinibatchRlEval if eval else MinibatchRl
     runner = runner_cls(
         algo=algo,
